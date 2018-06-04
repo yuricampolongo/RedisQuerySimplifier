@@ -4,8 +4,7 @@ import java.util.Optional;
 
 import com.google.gson.Gson;
 
-import br.com.redis.client.redisquerysimplifier.annotations.RedisObject;
-import br.com.redis.client.redisquerysimplifier.exceptions.RedisObjectNotIdentifiedException;
+import br.com.redis.client.redisquerysimplifier.utils.AnnotationUtilities;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.ScanParams;
 
@@ -36,13 +35,19 @@ public class RedisQuery {
 
 	/**
 	 * Save the entity in Redis or update.
+	 * The fields annotated with @RedisFieldIndex will be indexed for search
 	 * 
 	 * @param entity
 	 * @param id
 	 * @return
 	 */
 	public static <T> boolean save(T entity, Long id) {
-		String set = mtfbwy.set(generateRedisKey(entity.getClass(), id.toString()), serializeObject(entity));
+		String key = generateRedisKey(entity.getClass(), id.toString());
+		String set = mtfbwy.set(key, serializeObject(entity));
+		
+		//Do the index process
+		
+		
 		return set == null ? false : set.equals("OK");
 	}
 
@@ -114,12 +119,8 @@ public class RedisQuery {
 	 * @return
 	 */
 	private static <T> String generateRedisKey(Class<T> entityClass, String uniqueId) {
-		RedisObject rediObject = entityClass.getAnnotation(RedisObject.class);
-		if (rediObject == null) {
-			throw new RedisObjectNotIdentifiedException("Class " + entityClass.getName() + " is not annotated with @RedisObject, please annotate the class with @RedisObject annotation");
-		}
-		String rediObjectName = rediObject.name();
-		RedisKey key = new RedisKey(rediObjectName, uniqueId);
+		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
+		RedisKey key = new RedisKey(ro, uniqueId);
 		return GSON.toJson(key).replaceAll(" ", "").replaceAll("\"", "\\\"");
 	}
 
@@ -130,12 +131,8 @@ public class RedisQuery {
 	 * @return
 	 */
 	private static <T> String generateFilterKey(Class<T> entityClass) {
-		RedisObject rediObject = entityClass.getAnnotation(RedisObject.class);
-		if (rediObject == null) {
-			throw new RedisObjectNotIdentifiedException("Class " + entityClass.getName() + " is not annotated with @RedisObject, please annotate the class with @RedisObject annotation");
-		}
-		String rediObjectName = rediObject.name();
-		RedisKey key = new RedisKey(rediObjectName, "*");
+		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
+		RedisKey key = new RedisKey(ro, "*");
 		return GSON.toJson(key).replaceAll(" ", "").replaceAll("\"", "\\\"");
 	}
 
