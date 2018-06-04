@@ -11,7 +11,7 @@ import br.com.redis.client.redisquerysimplifier.entities.EntityNotExistTest;
 import br.com.redis.client.redisquerysimplifier.entities.EntityTest;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class RedisQuerySimplifierTester {
+public class Tester {
 
 	private static String	server	= "localhost";
 	private static Integer	port	= 6379;
