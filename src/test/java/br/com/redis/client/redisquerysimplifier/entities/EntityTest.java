@@ -1,11 +1,13 @@
 package br.com.redis.client.redisquerysimplifier.entities;
 
+import br.com.redis.client.redisquerysimplifier.annotations.RedisFieldIndex;
 import br.com.redis.client.redisquerysimplifier.annotations.RedisObject;
 
 @RedisObject(name = "EntityTest")
 public class EntityTest {
 
 	private Long	id;
+	@RedisFieldIndex
 	private String	name;
 
 	public EntityTest(Long id, String name) {

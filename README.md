@@ -1,3 +1,4 @@
+
 # RedisQuerySimplifier
 Simplify the use of Redis for simple projects. This project can be used to make simple operations in Redis, like: save, update, select by id, find first occurrence, delete, etc.
 
@@ -38,6 +39,21 @@ All the objects you will use, you need to annotate with @RedisObject annotation
     public class EntityTest {
     
     }
+	
+**INDEX FIELDS**
+
+You can index an object field to make fast searchs, to do that, just annotate your field with @RedisFieldIndex, obs: you MUST create a public getter for that field
+
+    @RedisObject(name = "EntityTest")
+    public class EntityTest {
+        private Long	id;
+	    @RedisFieldIndex
+	    private String	name;
+		
+	    public String getName() {
+		    return name;
+	    }
+	}
 
 **SAVE OR UPDATE**
 
@@ -58,7 +74,23 @@ Find the first occurrence of an object stored in Redis.
 Find the occurrence of an object stored in Redis based on ID.
 
     Optional<EntityTest> findById = RedisQuery.findById(EntityTest.class, 10l);
+	
+**CHECK EXISTS**
+
+Find if the occurrence of an object stored in Redis exists based on search params.
+
+    Map<String,String> params = new HashMap<>();
+    params.put("name", "EntityTest");
+	boolean exists = RedisQuery.exists(EntityTest.class, params);
     
+**REMOVE**
+
+Remove the entity and all its indexes
+
+    Long id = 11l;
+	EntityTest et = new EntityTest(id, "EntityTestToRemove");
+	RedisQuery.remove(et, id);
+
 *This project is in development phase, feel free to add more methods or suggestions, I will update the documentation as long as other methods are created*
 
 ## Authors
