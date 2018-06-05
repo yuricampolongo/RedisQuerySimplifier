@@ -13,7 +13,7 @@ public class Indexer {
 	 * @throws IllegalAccessException
 	 * @throws IllegalArgumentException
 	 */
-	public static <T> void index(T entity, String key) throws IllegalArgumentException, IllegalAccessException {
+	public static <T> void index(T entity, String key){
 		Map<String, String> toIndex = AnnotationUtilities.extractFieldsToIndex(entity);
 		String redisObjectName = AnnotationUtilities.extractRedisObjectName(entity.getClass());
 		toIndex.forEach((k,v) -> {

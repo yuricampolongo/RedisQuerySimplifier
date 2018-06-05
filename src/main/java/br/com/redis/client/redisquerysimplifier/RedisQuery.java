@@ -46,7 +46,7 @@ public class RedisQuery {
 	 * @throws IllegalAccessException
 	 * @throws IllegalArgumentException
 	 */
-	public static <T> boolean save(T entity, Long id) throws IllegalArgumentException, IllegalAccessException {
+	public static <T> boolean save(T entity, Long id){
 		String key = generateRedisKey(entity.getClass(), id.toString());
 		String set = mtfbwy.set(key, serializeObject(entity));
 
