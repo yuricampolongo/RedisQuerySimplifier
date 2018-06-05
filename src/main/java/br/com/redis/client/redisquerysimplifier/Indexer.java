@@ -20,4 +20,16 @@ public class Indexer {
 			RedisQuery.mtfbwy.hset(redisObjectName, RedisQuery.generateRedisKey(k, v), key);
 		});
 	}
+	
+	/**
+	 * Remove all indexes for entity
+	 * @param entity
+	 */
+	public static <T> void removeAllIndexesFromEntity(T entity){
+		Map<String, String> toRemove = AnnotationUtilities.extractFieldsToIndex(entity);
+		String redisObjectName = AnnotationUtilities.extractRedisObjectName(entity.getClass());
+		toRemove.forEach((k,v) -> {
+			RedisQuery.mtfbwy.hdel(redisObjectName, RedisQuery.generateRedisKey(k, v));
+		});
+	}
 }

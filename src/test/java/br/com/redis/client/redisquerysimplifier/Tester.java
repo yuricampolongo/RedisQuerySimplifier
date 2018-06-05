@@ -15,8 +15,8 @@ import br.com.redis.client.redisquerysimplifier.entities.EntityTest;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class Tester {
 
-	private static String	server	= "WVOX-000963";
-	private static Integer	port	= 6379;
+	private static String server = "WVOX-000963";
+	private static Integer port = 6379;
 
 	@BeforeClass
 	public static void configure() {
@@ -80,6 +80,19 @@ public class Tester {
 			throw new AssertionError("EntityTest with name = 'EntityTestNotExist' must not exist");
 		}
 
+	}
+
+	@Test
+	public void test8_testRemoval() {
+		// Create an entity to remove
+		Long id = 11l;
+		EntityTest et = new EntityTest(id, "EntityTestToRemove");
+		if (RedisQuery.save(et, id)) {
+			// Remove the entity
+			RedisQuery.remove(et, id);
+		} else {
+			throw new AssertionError("Unable to create entity to remove");
+		}
 	}
 
 }

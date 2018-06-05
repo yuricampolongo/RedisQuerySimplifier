@@ -46,7 +46,7 @@ public class RedisQuery {
 	 * @throws IllegalAccessException
 	 * @throws IllegalArgumentException
 	 */
-	public static <T> boolean save(T entity, Long id){
+	public static <T> boolean save(T entity, Long id) {
 		String key = generateRedisKey(entity.getClass(), id.toString());
 		String set = mtfbwy.set(key, serializeObject(entity));
 
@@ -101,6 +101,18 @@ public class RedisQuery {
 
 		Optional<Entry<String, String>> exist = mtfbwy.hscan(ro, "0", scanParams).getResult().stream().findFirst();
 		return exist.isPresent();
+	}
+
+	/**
+	 * Remove the entity and all its indexes
+	 * 
+	 * @param entity
+	 */
+	public static <T> boolean remove(T entity, Long id) {
+		//Removind indexes
+		Indexer.removeAllIndexesFromEntity(entity);
+		//Removind key
+		return mtfbwy.del(generateRedisKey(entity.getClass(),id.toString())) > 0;
 	}
 
 	/**
