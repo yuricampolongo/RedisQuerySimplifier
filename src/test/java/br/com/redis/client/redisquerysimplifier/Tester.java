@@ -27,11 +27,7 @@ public class Tester {
 	public void test1_save() {
 		Long id = 10l;
 		EntityTest et = new EntityTest(id, "EntityTest");
-		try {
-			RedisQuery.save(et, id);
-		} catch (IllegalArgumentException | IllegalAccessException e) {
-			throw new AssertionError(e.getMessage());
-		}
+		RedisQuery.save(et, id);
 	}
 
 	@Test
@@ -41,7 +37,7 @@ public class Tester {
 			throw new AssertionError("EntityTest not find");
 		}
 	}
-	
+
 	@Test
 	public void test3_mustNotFind() {
 		Optional<EntityNotExistTest> findFirst = RedisQuery.findFirst(EntityNotExistTest.class);
@@ -49,7 +45,7 @@ public class Tester {
 			throw new AssertionError("EntityNotExistTest must not exist");
 		}
 	}
-	
+
 	@Test
 	public void test4_findById() {
 		Optional<EntityTest> findById = RedisQuery.findById(EntityTest.class, 10l);
@@ -57,7 +53,7 @@ public class Tester {
 			throw new AssertionError("EntityTest with ID 10 must be found");
 		}
 	}
-	
+
 	@Test
 	public void test5_mustNotFindById() {
 		Optional<EntityTest> findById = RedisQuery.findById(EntityTest.class, 11l);
@@ -65,25 +61,25 @@ public class Tester {
 			throw new AssertionError("EntityTest with ID 11 must not be found");
 		}
 	}
-	
+
 	@Test
 	public void test6_searchByParams() {
-		Map<String,String> params = new HashMap<>();
+		Map<String, String> params = new HashMap<>();
 		params.put("name", "EntityTest");
-		if(!RedisQuery.exists(EntityTest.class, params)) {
+		if (!RedisQuery.exists(EntityTest.class, params)) {
 			throw new AssertionError("EntityTest with name = 'EntityTest' must exist");
 		}
-		
+
 	}
-	
+
 	@Test
 	public void test7_mustNotFindByParams() {
-		Map<String,String> params = new HashMap<>();
+		Map<String, String> params = new HashMap<>();
 		params.put("name", "EntityTestNotExist");
-		if(RedisQuery.exists(EntityTest.class, params)) {
+		if (RedisQuery.exists(EntityTest.class, params)) {
 			throw new AssertionError("EntityTest with name = 'EntityTestNotExist' must not exist");
 		}
-		
+
 	}
 
 }

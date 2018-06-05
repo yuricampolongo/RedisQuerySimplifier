@@ -38,6 +38,21 @@ All the objects you will use, you need to annotate with @RedisObject annotation
     public class EntityTest {
     
     }
+	
+**INDEX FIELDS**
+
+You can index an object field to make fast searchs, to do that, just annotate your field with @RedisFieldIndex, obs: you MUST create a public getter for that field
+
+    @RedisObject(name = "EntityTest")
+    public class EntityTest {
+        private Long	id;
+	    *@RedisFieldIndex*
+	    private String	name;
+		
+		public String getName() {
+		    return name;
+	    }
+	}
 
 **SAVE OR UPDATE**
 
