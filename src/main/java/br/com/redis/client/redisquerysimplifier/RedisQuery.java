@@ -1,6 +1,10 @@
 package br.com.redis.client.redisquerysimplifier;
 
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+
+import org.apache.log4j.jmx.Agent;
 
 import com.google.gson.Gson;
 
@@ -10,12 +14,12 @@ import redis.clients.jedis.ScanParams;
 
 public class RedisQuery {
 
-	protected static final Gson	GSON	= new Gson();
+	protected static final Gson GSON = new Gson();
 
 	/**
 	 * May the force be with you
 	 */
-	private static Jedis		mtfbwy;
+	static Jedis mtfbwy;
 
 	private RedisQuery() {
 
@@ -34,20 +38,21 @@ public class RedisQuery {
 	}
 
 	/**
-	 * Save the entity in Redis or update.
-	 * The fields annotated with @RedisFieldIndex will be indexed for search
+	 * Save the entity in Redis or update. The fields annotated with @RedisFieldIndex will be indexed for search
 	 * 
 	 * @param entity
 	 * @param id
 	 * @return
+	 * @throws IllegalAccessException
+	 * @throws IllegalArgumentException
 	 */
-	public static <T> boolean save(T entity, Long id) {
+	public static <T> boolean save(T entity, Long id) throws IllegalArgumentException, IllegalAccessException {
 		String key = generateRedisKey(entity.getClass(), id.toString());
 		String set = mtfbwy.set(key, serializeObject(entity));
-		
-		//Do the index process
-		
-		
+
+		// Do the index process
+		Indexer.index(entity, key);
+
 		return set == null ? false : set.equals("OK");
 	}
 
@@ -78,6 +83,24 @@ public class RedisQuery {
 	 */
 	public static <T> Optional<T> findById(Class<T> entityClass, Long id) {
 		return deserialize(entityClass, RedisQuery.generateRedisKey(entityClass, id.toString()));
+	}
+
+	/**
+	 * Check if there any occurences of an entity with passed parameters
+	 * 
+	 * @param params
+	 * @return
+	 */
+	public static <T> boolean exists(Class<T> entityClass, Map<String, String> params) {
+		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
+
+		ScanParams scanParams = new ScanParams();
+		params.forEach((k, v) -> {
+			scanParams.match(generateRedisKey(k, v));
+		});
+
+		Optional<Entry<String, String>> exist = mtfbwy.hscan(ro, "0", scanParams).getResult().stream().findFirst();
+		return exist.isPresent();
 	}
 
 	/**
@@ -118,9 +141,13 @@ public class RedisQuery {
 	 * @param uniqueId
 	 * @return
 	 */
-	private static <T> String generateRedisKey(Class<T> entityClass, String uniqueId) {
+	static <T> String generateRedisKey(Class<T> entityClass, String uniqueId) {
 		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
-		RedisKey key = new RedisKey(ro, uniqueId);
+		return generateRedisKey(ro, uniqueId);
+	}
+
+	static <T> String generateRedisKey(String keyS, String uniqueId) {
+		RedisKey key = new RedisKey(keyS, uniqueId);
 		return GSON.toJson(key).replaceAll(" ", "").replaceAll("\"", "\\\"");
 	}
 

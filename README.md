@@ -58,6 +58,14 @@ Find the first occurrence of an object stored in Redis.
 Find the occurrence of an object stored in Redis based on ID.
 
     Optional<EntityTest> findById = RedisQuery.findById(EntityTest.class, 10l);
+	
+**CHECK EXISTS**
+
+Find if the occurrence of an object stored in Redis exists based on search params.
+
+    Map<String,String> params = new HashMap<>();
+    params.put("name", "EntityTest");
+	boolean exists = RedisQuery.exists(EntityTest.class, params);
     
 *This project is in development phase, feel free to add more methods or suggestions, I will update the documentation as long as other methods are created*
 

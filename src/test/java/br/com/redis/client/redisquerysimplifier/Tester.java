@@ -1,5 +1,7 @@
 package br.com.redis.client.redisquerysimplifier;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.BeforeClass;
@@ -13,7 +15,7 @@ import br.com.redis.client.redisquerysimplifier.entities.EntityTest;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class Tester {
 
-	private static String	server	= "localhost";
+	private static String	server	= "WVOX-000963";
 	private static Integer	port	= 6379;
 
 	@BeforeClass
@@ -25,7 +27,11 @@ public class Tester {
 	public void test1_save() {
 		Long id = 10l;
 		EntityTest et = new EntityTest(id, "EntityTest");
-		RedisQuery.save(et, id);
+		try {
+			RedisQuery.save(et, id);
+		} catch (IllegalArgumentException | IllegalAccessException e) {
+			throw new AssertionError(e.getMessage());
+		}
 	}
 
 	@Test
@@ -58,6 +64,26 @@ public class Tester {
 		if (findById.isPresent()) {
 			throw new AssertionError("EntityTest with ID 11 must not be found");
 		}
+	}
+	
+	@Test
+	public void test6_searchByParams() {
+		Map<String,String> params = new HashMap<>();
+		params.put("name", "EntityTest");
+		if(!RedisQuery.exists(EntityTest.class, params)) {
+			throw new AssertionError("EntityTest with name = 'EntityTest' must exist");
+		}
+		
+	}
+	
+	@Test
+	public void test7_mustNotFindByParams() {
+		Map<String,String> params = new HashMap<>();
+		params.put("name", "EntityTestNotExist");
+		if(RedisQuery.exists(EntityTest.class, params)) {
+			throw new AssertionError("EntityTest with name = 'EntityTestNotExist' must not exist");
+		}
+		
 	}
 
 }
