@@ -1,10 +1,11 @@
 package br.com.redis.client.redisquerysimplifier;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-
-import org.apache.log4j.jmx.Agent;
+import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 
@@ -84,6 +85,10 @@ public class RedisQuery {
 	public static <T> Optional<T> findById(Class<T> entityClass, Long id) {
 		return deserialize(entityClass, RedisQuery.generateRedisKey(entityClass, id.toString()));
 	}
+	
+	private static <T> Optional<T> findById(Class<T> entityClass, String id) {
+		return deserialize(entityClass, id);
+	}
 
 	/**
 	 * Check if there any occurences of an entity with passed parameters
@@ -92,15 +97,8 @@ public class RedisQuery {
 	 * @return
 	 */
 	public static <T> boolean exists(Class<T> entityClass, Map<String, String> params) {
-		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
-
-		ScanParams scanParams = new ScanParams();
-		params.forEach((k, v) -> {
-			scanParams.match(generateRedisKey(k, v));
-		});
-
-		Optional<Entry<String, String>> exist = mtfbwy.hscan(ro, "0", scanParams).getResult().stream().findFirst();
-		return exist.isPresent();
+		List<Entry<String, String>> filterByParams = filterByParams(entityClass, params);
+		return filterByParams.stream().findFirst().isPresent();
 	}
 
 	/**
@@ -109,12 +107,64 @@ public class RedisQuery {
 	 * @param entity
 	 */
 	public static <T> boolean remove(T entity, Long id) {
-		//Removind indexes
-		Indexer.removeAllIndexesFromEntity(entity);
-		//Removind key
-		return mtfbwy.del(generateRedisKey(entity.getClass(),id.toString())) > 0;
+		Indexer.removeAllIndexesFromEntity(entity); //Removing indexes
+		return mtfbwy.del(generateRedisKey(entity.getClass(),id.toString())) > 0; //Removing key
+	}
+	
+	/**
+	 * Find the first occurence of an entity based on indexed params
+	 * @param entityClass
+	 * @param params
+	 * @return
+	 */
+	public static <T> Optional<T> findFirstByParams(Class<T> entityClass, Map<String, String> params) {
+		Optional<Entry<String, String>> findFirst = filterByParams(entityClass, params).stream().findFirst();
+		Optional<T> toReturn = Optional.empty();
+		
+		if(findFirst.isPresent()) {
+			toReturn = findById(entityClass, findFirst.get().getValue());
+		}
+		
+		return toReturn;
 	}
 
+	/**
+	 * Do the search in index
+	 * @param entityClass
+	 * @param params
+	 * @return
+	 */
+	private static <T> List<Entry<String, String>> filterByParams(Class<T> entityClass, Map<String, String> params) {
+		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
+
+		ScanParams scanParams = new ScanParams();
+		params.forEach((k, v) -> {
+			AnnotationUtilities.validateFieldSearchedIndexed(entityClass, k);
+			scanParams.match(generateRedisKey(k, v)); // TODO: Multiple params filter
+		});
+		
+		return mtfbwy.hscan(ro, "0", scanParams).getResult();
+	}
+	
+	/**
+	 * Find all the occurrences of an entity 
+	 * @param entityClass
+	 * @return
+	 */
+	public static <T> List<T> findAll(Class<T> entityClass) {
+		ScanParams params = new ScanParams();
+		params.match(generateFilterKey(entityClass));
+		List<String> collect = mtfbwy.scan("0", params).getResult().stream().collect(Collectors.toList());
+		
+		List<T> toReturn = new ArrayList<>();
+		
+		collect.stream().forEach(key->{
+			toReturn.add(findById(entityClass, key).get());
+		});
+		
+		return toReturn;
+	}
+	
 	/**
 	 * Serialize an object to a json string
 	 * 

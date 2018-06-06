@@ -90,6 +90,20 @@ Remove the entity and all its indexes
     Long id = 11l;
 	EntityTest et = new EntityTest(id, "EntityTestToRemove");
 	RedisQuery.remove(et, id);
+	
+**FIND FIRST FILTERING BY PARAMS**
+
+Find the first occurence of an entity based on indexed params
+
+    Map<String, String> params = new HashMap<>();
+    params.put("name", "EntityTest");
+	RedisQuery.findFirstByParams(EntityTest.class, params);
+	
+**FIND ALL**
+
+Find all the occurrences of an entity 
+
+    List<EntityTest> all = RedisQuery.findAll(EntityTest.class);
 
 *This project is in development phase, feel free to add more methods or suggestions, I will update the documentation as long as other methods are created*
 
