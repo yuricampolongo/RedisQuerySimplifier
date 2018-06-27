@@ -1,25 +1,27 @@
 package br.com.redis.client.redisquerysimplifier;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
-
-import org.apache.log4j.jmx.Agent;
+import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 
+import br.com.redis.client.redisquerysimplifier.filters.MatchOperator;
+import br.com.redis.client.redisquerysimplifier.filters.MatchOperatorCombiner;
 import br.com.redis.client.redisquerysimplifier.utils.AnnotationUtilities;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.ScanParams;
 
 public class RedisQuery {
 
-	protected static final Gson GSON = new Gson();
+	protected static final Gson	GSON	= new Gson();
 
 	/**
 	 * May the force be with you
 	 */
-	static Jedis mtfbwy;
+	static Jedis				mtfbwy;
 
 	private RedisQuery() {
 
@@ -51,7 +53,7 @@ public class RedisQuery {
 		String set = mtfbwy.set(key, serializeObject(entity));
 
 		// Do the index process
-		Indexer.index(entity, key);
+		Indexer.index(entity, key, id.toString());
 
 		return set == null ? false : set.equals("OK");
 	}
@@ -85,22 +87,19 @@ public class RedisQuery {
 		return deserialize(entityClass, RedisQuery.generateRedisKey(entityClass, id.toString()));
 	}
 
+	private static <T> Optional<T> findById(Class<T> entityClass, String id) {
+		return deserialize(entityClass, id);
+	}
+
 	/**
 	 * Check if there any occurences of an entity with passed parameters
 	 * 
 	 * @param params
 	 * @return
 	 */
-	public static <T> boolean exists(Class<T> entityClass, Map<String, String> params) {
-		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
-
-		ScanParams scanParams = new ScanParams();
-		params.forEach((k, v) -> {
-			scanParams.match(generateRedisKey(k, v));
-		});
-
-		Optional<Entry<String, String>> exist = mtfbwy.hscan(ro, "0", scanParams).getResult().stream().findFirst();
-		return exist.isPresent();
+	public static <T> boolean exists(Class<T> entityClass, MatchOperatorCombiner matchOperatorCombiner) {
+		List<Entry<String, String>> filterByParams = filterByParams(entityClass, matchOperatorCombiner);
+		return filterByParams.stream().findFirst().isPresent();
 	}
 
 	/**
@@ -109,10 +108,114 @@ public class RedisQuery {
 	 * @param entity
 	 */
 	public static <T> boolean remove(T entity, Long id) {
-		//Removind indexes
-		Indexer.removeAllIndexesFromEntity(entity);
-		//Removind key
-		return mtfbwy.del(generateRedisKey(entity.getClass(),id.toString())) > 0;
+		Indexer.removeAllIndexesFromEntity(entity, id.toString()); // Removing indexes
+		return mtfbwy.del(generateRedisKey(entity.getClass(), id.toString())) > 0; // Removing key
+	}
+
+	/**
+	 * Find the first occurence of an entity based on indexed params
+	 * 
+	 * @param entityClass
+	 * @param params
+	 * @return
+	 */
+	public static <T> Optional<T> findFirstByParams(Class<T> entityClass, MatchOperatorCombiner matchOperatorCombiner) {
+		Optional<Entry<String, String>> findFirst = filterByParams(entityClass, matchOperatorCombiner).stream().findFirst();
+		Optional<T> toReturn = Optional.empty();
+
+		if (findFirst.isPresent()) {
+			toReturn = findById(entityClass, findFirst.get().getValue());
+		}
+
+		return toReturn;
+	}
+
+	/**
+	 * Find all occurrences based on search params
+	 * 
+	 * @param entityClass
+	 * @param params
+	 * @return
+	 */
+	public static <T> List<T> findAllByParams(Class<T> entityClass, MatchOperatorCombiner matchOperatorCombiner) {
+		List<Entry<String, String>> collect = filterByParams(entityClass, matchOperatorCombiner).stream().collect(Collectors.toList());
+		List<T> toReturn = new ArrayList<>();
+
+		collect.forEach(action -> {
+			toReturn.add(findById(entityClass, action.getValue()).get());
+		});
+
+		return toReturn;
+	}
+
+	/**
+	 * Do the search in index
+	 * 
+	 * @param entityClass
+	 * @param params
+	 * @return
+	 */
+	private static <T> List<Entry<String, String>> filterByParams(Class<T> entityClass, MatchOperatorCombiner matchOperatorCombiner) {
+		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
+
+		List<Entry<String, String>> toReturn = new ArrayList<>();
+
+		for (List<MatchOperator> block : matchOperatorCombiner.getOperators()) {
+			List<Entry<String, String>> currentBlockResults = new ArrayList<>();
+			for (MatchOperator operator : block) {
+				ScanParams scanParams = new ScanParams();
+				AnnotationUtilities.validateFieldSearchedIndexed(entityClass, operator.getFieldName());
+				String filter = operator.getOperator().build(operator.getFieldValue().toString());
+				scanParams.match(generateRedisIndexKey(operator.getFieldName(), filter, "*"));
+
+				List<Entry<String, String>> currentResult = mtfbwy.hscan(ro, "0", scanParams).getResult();
+
+				if (currentResult.isEmpty()) {
+					currentBlockResults.clear();
+				}
+
+				if (!currentBlockResults.isEmpty()) {
+					currentBlockResults.removeIf(p -> !currentResult.stream().anyMatch(p2 -> p2.getValue().equals(p.getValue())));
+					currentResult.removeIf(p -> !currentBlockResults.stream().anyMatch(p2 -> p2.getValue().equals(p.getValue())));
+
+					currentResult.forEach(item -> {
+						boolean anyMatch = currentBlockResults.stream().anyMatch(p -> !p.getValue().equals(item.getValue()));
+						if (anyMatch) {
+							currentBlockResults.add(item);
+						}
+					});
+				} else {
+					currentBlockResults.addAll(currentResult);
+				}
+
+				if (currentBlockResults.isEmpty()) {
+					break;
+				}
+			}
+			toReturn.addAll(currentBlockResults);
+		}
+
+		return toReturn;
+	}
+
+	/**
+	 * Find all the occurrences of an entity
+	 * 
+	 * @param entityClass
+	 * @return
+	 */
+	public static <T> List<T> findAll(Class<T> entityClass) {
+		ScanParams params = new ScanParams();
+		params.match(generateFilterKey(entityClass));
+		List<String> collect = mtfbwy.scan("0", params).getResult().stream().collect(Collectors.toList());
+
+		List<T> toReturn = new ArrayList<>();
+
+		collect.stream().forEach(key -> {
+			toReturn.add(findById(entityClass, key).get());
+		});
+
+		return toReturn;
 	}
 
 	/**
@@ -147,6 +250,15 @@ public class RedisQuery {
 	}
 
 	/**
+	 * Set uniqueId
+	 * 
+	 * @return
+	 */
+	public static void setUniqueId(Long value) {
+		mtfbwy.set("uniqueId", value + "");
+	}
+
+	/**
 	 * Generate a Redis key with specified uniqueId and class identifier
 	 * 
 	 * @param entityClass
@@ -160,6 +272,11 @@ public class RedisQuery {
 
 	static <T> String generateRedisKey(String keyS, String uniqueId) {
 		RedisKey key = new RedisKey(keyS, uniqueId);
+		return GSON.toJson(key).replaceAll(" ", "").replaceAll("\"", "\\\"");
+	}
+
+	static <T> String generateRedisIndexKey(String keyS, String uniqueId, String indexKey) {
+		RedisKey key = new RedisKey(keyS, uniqueId, indexKey);
 		return GSON.toJson(key).replaceAll(" ", "").replaceAll("\"", "\\\"");
 	}
 

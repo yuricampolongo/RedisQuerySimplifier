@@ -6,4 +6,8 @@ public class RedisAnnotationException extends RuntimeException {
 		super(message);
 	}
 
+	public RedisAnnotationException(Exception cause) {
+		super(cause);
+	}
+
 }
