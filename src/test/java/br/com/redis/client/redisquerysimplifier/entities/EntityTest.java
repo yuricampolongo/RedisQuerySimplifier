@@ -9,6 +9,8 @@ public class EntityTest {
 	private Long	id;
 	@RedisFieldIndex
 	private String	name;
+	@RedisFieldIndex
+	private Long	docNumber;
 
 	private String	address;
 
@@ -16,6 +18,13 @@ public class EntityTest {
 		super();
 		this.id = id;
 		this.name = name;
+	}
+
+	public EntityTest(Long id, String name, Long docNumber) {
+		super();
+		this.id = id;
+		this.name = name;
+		this.docNumber = docNumber;
 	}
 
 	public EntityTest(Long id, String name, String address) {
@@ -47,6 +56,14 @@ public class EntityTest {
 
 	public void setAddress(String address) {
 		this.address = address;
+	}
+
+	public Long getDocNumber() {
+		return docNumber;
+	}
+
+	public void setDocNumber(Long docNumber) {
+		this.docNumber = docNumber;
 	}
 
 }

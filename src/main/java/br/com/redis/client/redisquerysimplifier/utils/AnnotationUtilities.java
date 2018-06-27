@@ -50,10 +50,12 @@ public class AnnotationUtilities {
 			for (Field field : fields) {
 				Method method = entity.getClass().getMethod("get" + capitalize(field.getName()));
 				Object object = method.invoke(entity);
-				index.put(field.getName(), object.toString());
+				if (object != null) {
+					index.put(field.getName(), object.toString());
+				}
 			}
 		} catch (Exception e) {
-			throw new RedisAnnotationException(e.getMessage());
+			throw new RedisAnnotationException(e);
 		}
 
 		return index;
