@@ -22,7 +22,7 @@ public class Tester {
 
 	@BeforeClass
 	public static void configure() {
-		RedisQuery.init(server, port);
+		RedisQuery.init(server, port,5000);
 
 		Long id = 10l;
 		EntityTest et = new EntityTest(id, "EntityTest");
