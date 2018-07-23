@@ -22,6 +22,9 @@ public class RedisQuery {
 	 * May the force be with you
 	 */
 	static Jedis				mtfbwy;
+	private static String		server;
+	private static Integer		port;
+	private static int			timeout;
 
 	private RedisQuery() {
 
@@ -35,8 +38,18 @@ public class RedisQuery {
 	 * @param port
 	 *            Redis port
 	 */
-	public static void init(String server, Integer port) {
-		mtfbwy = new Jedis(server, port);
+	public static void init(String server, Integer port, int timeout) {
+		mtfbwy = new Jedis(server, port, timeout);
+		RedisQuery.server = server;
+		RedisQuery.port = port;
+		RedisQuery.timeout = timeout;
+	}
+
+	private static Jedis getJedis() {
+		if (mtfbwy.getClient().isBroken()) {
+			init(server, port, timeout);
+		}
+		return mtfbwy;
 	}
 
 	/**
@@ -50,7 +63,7 @@ public class RedisQuery {
 	 */
 	public static <T> boolean save(T entity, Long id) {
 		String key = generateRedisKey(entity.getClass(), id.toString());
-		String set = mtfbwy.set(key, serializeObject(entity));
+		String set = getJedis().set(key, serializeObject(entity));
 
 		// Do the index process
 		Indexer.index(entity, key, id.toString());
@@ -68,7 +81,7 @@ public class RedisQuery {
 	public static <T> Optional<T> findFirst(Class<T> entityClass) {
 		ScanParams params = new ScanParams();
 		params.match(generateFilterKey(entityClass));
-		Optional<String> firstInCache = mtfbwy.scan("0", params).getResult().stream().findFirst();
+		Optional<String> firstInCache = getJedis().scan("0", params).getResult().stream().findFirst();
 		Optional<T> deserialize = Optional.empty();
 		if (firstInCache.isPresent()) {
 			deserialize = deserialize(entityClass, firstInCache.get());
@@ -109,7 +122,7 @@ public class RedisQuery {
 	 */
 	public static <T> boolean remove(T entity, Long id) {
 		Indexer.removeAllIndexesFromEntity(entity, id.toString()); // Removing indexes
-		return mtfbwy.del(generateRedisKey(entity.getClass(), id.toString())) > 0; // Removing key
+		return getJedis().del(generateRedisKey(entity.getClass(), id.toString())) > 0; // Removing key
 	}
 
 	/**
@@ -168,7 +181,7 @@ public class RedisQuery {
 				String filter = operator.getOperator().build(operator.getFieldValue().toString());
 				scanParams.match(generateRedisIndexKey(operator.getFieldName(), filter, "*"));
 
-				List<Entry<String, String>> currentResult = mtfbwy.hscan(ro, "0", scanParams).getResult();
+				List<Entry<String, String>> currentResult = getJedis().hscan(ro, "0", scanParams).getResult();
 
 				if (currentResult.isEmpty()) {
 					currentBlockResults.clear();
@@ -207,7 +220,7 @@ public class RedisQuery {
 	public static <T> List<T> findAll(Class<T> entityClass) {
 		ScanParams params = new ScanParams();
 		params.match(generateFilterKey(entityClass));
-		List<String> collect = mtfbwy.scan("0", params).getResult().stream().collect(Collectors.toList());
+		List<String> collect = getJedis().scan("0", params).getResult().stream().collect(Collectors.toList());
 
 		List<T> toReturn = new ArrayList<>();
 
@@ -233,7 +246,7 @@ public class RedisQuery {
 	 * @return
 	 */
 	private static <T> Optional<T> deserialize(Class<T> entityClass, String key) {
-		String value = mtfbwy.get(key);
+		String value = getJedis().get(key);
 		if (value == null) {
 			return Optional.empty();
 		}
@@ -246,7 +259,7 @@ public class RedisQuery {
 	 * @return
 	 */
 	public static Long nextUniqueId() {
-		return mtfbwy.incr("uniqueId");
+		return getJedis().incr("uniqueId");
 	}
 
 	/**
@@ -255,7 +268,7 @@ public class RedisQuery {
 	 * @return
 	 */
 	public static void setUniqueId(Long value) {
-		mtfbwy.set("uniqueId", value + "");
+		getJedis().set("uniqueId", value + "");
 	}
 
 	/**
