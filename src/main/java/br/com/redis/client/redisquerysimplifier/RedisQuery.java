@@ -2,14 +2,17 @@ package br.com.redis.client.redisquerysimplifier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 
+import br.com.redis.client.redisquerysimplifier.exceptions.RedisFieldNotIndexedException;
 import br.com.redis.client.redisquerysimplifier.filters.MatchOperator;
 import br.com.redis.client.redisquerysimplifier.filters.MatchOperatorCombiner;
+import br.com.redis.client.redisquerysimplifier.strategies.RedisSerialization;
 import br.com.redis.client.redisquerysimplifier.utils.AnnotationUtilities;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.ScanParams;
@@ -45,7 +48,7 @@ public class RedisQuery {
 		RedisQuery.timeout = timeout;
 	}
 
-	private static Jedis getJedis() {
+    static Jedis getJedis() {
 		if (mtfbwy.getClient().isBroken()) {
 			init(server, port, timeout);
 		}
@@ -62,13 +65,21 @@ public class RedisQuery {
 	 * @throws IllegalArgumentException
 	 */
 	public static <T> boolean save(T entity, Long id) {
-		String key = generateRedisKey(entity.getClass(), id.toString());
-		String set = getJedis().set(key, serializeObject(entity));
+		try {
+			String key = generateRedisKey(entity.getClass(), id.toString());
 
-		// Do the index process
-		Indexer.index(entity, key, id.toString());
+			Map<String, String> toStore = RedisSerialization.serialize(entity, key);
+			toStore.forEach((k, v) -> {
+				getJedis().set(k, v);
+			});
 
-		return set == null ? false : set.equals("OK");
+			// Do the index process
+			Indexer.index(entity, key, id.toString());
+
+			return getJedis().get(key) == null ? false : true;
+		} catch (Exception e) {
+			throw new RedisFieldNotIndexedException(e, "An error occurred to index field " + entity.getClass().getName());
+		}
 	}
 
 	/**
@@ -121,8 +132,17 @@ public class RedisQuery {
 	 * @param entity
 	 */
 	public static <T> boolean remove(T entity, Long id) {
-		Indexer.removeAllIndexesFromEntity(entity, id.toString()); // Removing indexes
-		return getJedis().del(generateRedisKey(entity.getClass(), id.toString())) > 0; // Removing key
+		try {
+			String key = generateRedisKey(entity.getClass(), id.toString());
+			Map<String, String> serializeRelationships = RedisSerialization.serializeRelationships(entity, key);
+			serializeRelationships.forEach((k, v) -> getJedis().del(k));
+
+			Indexer.removeAllIndexesFromEntity(entity, id.toString()); // Removing indexes
+
+			return getJedis().del(generateRedisKey(entity.getClass(), id.toString())) > 0; // Removing key
+		} catch (Exception e) {
+			throw new RedisFieldNotIndexedException(e, "An error occurred to index field " + entity.getClass().getName());
+		}
 	}
 
 	/**
@@ -232,25 +252,25 @@ public class RedisQuery {
 	}
 
 	/**
-	 * Serialize an object to a json string
-	 * 
-	 * @return
-	 */
-	private static <T> String serializeObject(T entity) {
-		return GSON.toJson(entity);
-	}
-
-	/**
 	 * Deserialize an object to a specified class passed as param
 	 * 
 	 * @return
 	 */
 	private static <T> Optional<T> deserialize(Class<T> entityClass, String key) {
-		String value = getJedis().get(key);
-		if (value == null) {
-			return Optional.empty();
+		try {
+			String value = getJedis().get(key);
+			if (value == null) {
+				return Optional.empty();
+			}
+			T fromJson = GSON.fromJson(value, entityClass);
+
+			// Searching the relationships
+			Searcher.fillObjectWithRelationships(fromJson, key, entityClass);
+
+			return Optional.of(fromJson);
+		} catch (Exception e) {
+			throw new RedisFieldNotIndexedException(e, "An error occurred to index field ");
 		}
-		return Optional.of(GSON.fromJson(value, entityClass));
 	}
 
 	/**
