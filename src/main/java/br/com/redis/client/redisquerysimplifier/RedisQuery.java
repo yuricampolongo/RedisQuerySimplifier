@@ -1,5 +1,6 @@
 package br.com.redis.client.redisquerysimplifier;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
@@ -12,19 +13,19 @@ import br.com.redis.client.redisquerysimplifier.filters.MatchOperator;
 import br.com.redis.client.redisquerysimplifier.filters.MatchOperatorCombiner;
 import br.com.redis.client.redisquerysimplifier.utils.AnnotationUtilities;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.ScanParams;
 
 public class RedisQuery {
 
-	protected static final Gson	GSON	= new Gson();
+	protected static final Gson	GSON		= new Gson();
 
-	/**
-	 * May the force be with you
-	 */
-	static Jedis				mtfbwy;
 	private static String		server;
 	private static Integer		port;
 	private static int			timeout;
+	private static JedisPool	jedisPool;
+	private static boolean		poolStarted	= false;
 
 	private RedisQuery() {
 
@@ -39,17 +40,39 @@ public class RedisQuery {
 	 *            Redis port
 	 */
 	public static void init(String server, Integer port, int timeout) {
-		mtfbwy = new Jedis(server, port, timeout);
 		RedisQuery.server = server;
 		RedisQuery.port = port;
 		RedisQuery.timeout = timeout;
+		createConnection();
 	}
 
-	private static Jedis getJedis() {
-		if (mtfbwy.getClient().isBroken()) {
-			init(server, port, timeout);
+	private static void createConnection() {
+		if (!poolStarted) {
+			final JedisPoolConfig poolConfig = buildPoolConfig();
+			jedisPool = new JedisPool(poolConfig, server, port, timeout);
+			poolStarted = true;
 		}
-		return mtfbwy;
+	}
+
+	private static JedisPoolConfig buildPoolConfig() {
+		final JedisPoolConfig poolConfig = new JedisPoolConfig();
+		poolConfig.setMaxTotal(128);
+		poolConfig.setMaxIdle(128);
+		poolConfig.setMinIdle(16);
+		poolConfig.setTestOnBorrow(true);
+		poolConfig.setTestOnReturn(true);
+		poolConfig.setTestWhileIdle(true);
+		poolConfig.setMinEvictableIdleTimeMillis(Duration.ofSeconds(60).toMillis());
+		poolConfig.setTimeBetweenEvictionRunsMillis(Duration.ofSeconds(30).toMillis());
+		poolConfig.setNumTestsPerEvictionRun(3);
+		poolConfig.setBlockWhenExhausted(true);
+		return poolConfig;
+	}
+
+	protected static Jedis getJedis() {
+		try (Jedis jedis = jedisPool.getResource()) {
+			return jedis;
+		}
 	}
 
 	/**
@@ -79,14 +102,20 @@ public class RedisQuery {
 	 * @return an Optional of the value
 	 */
 	public static <T> Optional<T> findFirst(Class<T> entityClass) {
-		ScanParams params = new ScanParams();
-		params.match(generateFilterKey(entityClass));
-		Optional<String> firstInCache = getJedis().scan("0", params).getResult().stream().findFirst();
-		Optional<T> deserialize = Optional.empty();
-		if (firstInCache.isPresent()) {
-			deserialize = deserialize(entityClass, firstInCache.get());
+		int totalKeys = getJedis().keys("*").size();
+
+		if (totalKeys > 0) {
+			ScanParams params = new ScanParams();
+			params.match(generateFilterKey(entityClass));
+			params.count(totalKeys);
+			Optional<String> firstInCache = getJedis().scan("0", params).getResult().stream().findFirst();
+			Optional<T> deserialize = Optional.empty();
+			if (firstInCache.isPresent()) {
+				deserialize = deserialize(entityClass, firstInCache.get());
+			}
+			return deserialize;
 		}
-		return deserialize;
+		return Optional.empty();
 	}
 
 	/**
@@ -170,7 +199,7 @@ public class RedisQuery {
 	 */
 	private static <T> List<Entry<String, String>> filterByParams(Class<T> entityClass, MatchOperatorCombiner matchOperatorCombiner) {
 		String ro = AnnotationUtilities.extractRedisObjectName(entityClass);
-
+		int totalKeys = getJedis().keys("*").size();
 		List<Entry<String, String>> toReturn = new ArrayList<>();
 
 		for (List<MatchOperator> block : matchOperatorCombiner.getOperators()) {
@@ -180,6 +209,7 @@ public class RedisQuery {
 				AnnotationUtilities.validateFieldSearchedIndexed(entityClass, operator.getFieldName());
 				String filter = operator.getOperator().build(operator.getFieldValue().toString());
 				scanParams.match(generateRedisIndexKey(operator.getFieldName(), filter, "*"));
+				scanParams.count(totalKeys);
 
 				List<Entry<String, String>> currentResult = getJedis().hscan(ro, "0", scanParams).getResult();
 
@@ -218,15 +248,19 @@ public class RedisQuery {
 	 * @return
 	 */
 	public static <T> List<T> findAll(Class<T> entityClass) {
-		ScanParams params = new ScanParams();
-		params.match(generateFilterKey(entityClass));
-		List<String> collect = getJedis().scan("0", params).getResult().stream().collect(Collectors.toList());
-
+		int totalKeys = getJedis().keys("*").size();
 		List<T> toReturn = new ArrayList<>();
 
-		collect.stream().forEach(key -> {
-			toReturn.add(findById(entityClass, key).get());
-		});
+		if (totalKeys > 0) {
+			ScanParams params = new ScanParams();
+			params.match(generateFilterKey(entityClass));
+			params.count(totalKeys);
+			List<String> collect = getJedis().scan("0", params).getResult().stream().collect(Collectors.toList());
+
+			collect.stream().forEach(key -> {
+				toReturn.add(findById(entityClass, key).get());
+			});
+		}
 
 		return toReturn;
 	}

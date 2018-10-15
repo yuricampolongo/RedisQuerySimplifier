@@ -23,7 +23,7 @@ public class Indexer {
 		removeAllIndexesFromEntity(entity, indexKey);
 
 		toIndex.forEach((k, v) -> {
-			RedisQuery.mtfbwy.hset(redisObjectName, RedisQuery.generateRedisIndexKey(k, v, indexKey), key);
+			RedisQuery.getJedis().hset(redisObjectName, RedisQuery.generateRedisIndexKey(k, v, indexKey), key);
 		});
 	}
 
@@ -37,10 +37,10 @@ public class Indexer {
 
 		ScanParams scanParams = new ScanParams();
 		scanParams.match(RedisQuery.generateRedisIndexKey("*", "*", indexKey));
-		List<Entry<String, String>> currentResult = RedisQuery.mtfbwy.hscan(redisObjectName, "0", scanParams).getResult();
+		List<Entry<String, String>> currentResult = RedisQuery.getJedis().hscan(redisObjectName, "0", scanParams).getResult();
 
 		for (Entry<String, String> entry : currentResult) {
-			RedisQuery.mtfbwy.hdel(redisObjectName, entry.getKey());
+			RedisQuery.getJedis().hdel(redisObjectName, entry.getKey());
 		}
 	}
 }
