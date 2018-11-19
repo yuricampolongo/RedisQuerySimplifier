@@ -1,9 +1,11 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>br.com.redis.clients</groupId>
 	<artifactId>redisquerysimplifier</artifactId>
-	<version>1.0.2</version>
+	<version>1.0.3</version>
+	<packaging>jar</packaging>
 	<name>Redis Query Simplifier</name>
 	<description>Simplify the use of Redis for simple projects	</description>
 
@@ -14,34 +16,11 @@
 		<maven.compiler.target>1.8</maven.compiler.target>
 	</properties>
 
-	<distributionManagement>
-		<repository>
-			<id>releases</id>
-			<url>http://svox-back01:8081/nexus/content/repositories/releases</url>
-		</repository>
-		<snapshotRepository>
-			<id>snapshots</id>
-			<url>http://svox-back01:8081/nexus/content/repositories/snapshots</url>
-		</snapshotRepository>
-	</distributionManagement>
-
-	<repositories>
-		<repository>
-			<id>br.com.voxage</id>
-			<url>http://svox-back01:8081/nexus/content/groups/br.com.voxage/</url>
-		</repository>
-	</repositories>
-
 	<dependencies>
 		<dependency>
 			<groupId>redis.clients</groupId>
 			<artifactId>jedis</artifactId>
 			<version>2.9.0</version>
-		</dependency>
-		<dependency>
-			<groupId>br.com.voxage</groupId>
-			<artifactId>voxlog</artifactId>
-			<version>1.1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
